@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Expense Log - Finance Manager</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'finance/styles.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<header><h1>Expense Log</h1></header>
+<div style="display: flex; min-height: calc(100vh - 100px);">
+{% include 'finance/sidebar.html' %}
+    {% if messages %}
+    <div id="popup-messages">
+        {% for message in messages %}
+        <div class="popup-message {{ message.tags }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+<main style="flex: 1;">
+    <h1 class="page-title">💳 Expense Log</h1>
+    <!-- Manage Expenses Card -->
+    <div style="background:#222; padding:15px; border-radius:10px; margin:20px 0; display:flex; align-items:center; justify-content:space-between;">
+        <h2 style="margin:0;">⚙️ Manage Expenses</h2>
+        <div style="display:flex; gap:10px; align-items:center;">
+            <a href="{% url 'add_expense' %}">
+                <button type="button" class="edit-button" style="height:40px; padding:0 15px;">➕ Add New Expense</button>
+            </a>
+            <form id="delete-selected-form" action="{% url 'delete_selected_expenses' %}" method="post" style="margin:0; padding:0; background:transparent;">
+                {% csrf_token %}
+                <input type="hidden" name="selected_ids" id="selected-ids">
+                <button type="submit" class="delete-button" style="height:40px; padding:0 15px;" onclick="return confirm('Delete selected expenses?')">🗑️ Delete Selected</button>
+            </form>
+            <form action="{% url 'bulk_delete_expense' %}" method="post" style="margin:0; padding:0; background:transparent;">
+                {% csrf_token %}
+                <button type="submit" class="delete-button" style="height:40px; padding:0 15px;" onclick="return confirm('Delete all expenses?')">🗑️ Delete All</button>
+            </form>
+        </div>
+    </div>
+
+    <table>
+        <tr>
+                <th><input type="checkbox" id="select-all"></th> <!-- Checkbox column -->
+                <th>Date</th>
+                <th>Source</th>
+                <th>Amount</th>
+                <th style="position:relative;">
+                    Category 
+                    <span id="categoryIcon" style="cursor:pointer; display:inline-block; transition:transform 0.2s;" onclick="toggleCategoryDropdown()">⏷</span>
+                </th>
+
+                <!-- Move dropdown outside table so it doesn't get cut -->
+                <ul id="categoryDropdown" style="display:none; position:absolute; background:#222; list-style:none; margin:0; padding:5px 0; border-radius:6px; z-index:999; box-shadow:0 4px 8px rgba(0,0,0,0.4); max-height:200px; overflow-y:auto; min-width:150px; color:#eee;">
+                    <li style="padding:5px 12px; cursor:pointer;" onclick="filterByCategory('')">All</li>
+                    {% for category in categories %}
+                        <li style="padding:5px 12px; cursor:pointer;" onclick="filterByCategory('{{ category }}')">{{ category }}</li>
+                    {% endfor %}
+                </ul>
+
+                <th>Actions</th>
+            </tr>
+        {% for expense in expenses %}
+        <tr id="row-{{ expense.id }}">
+            <td><input type="checkbox" class="row-checkbox" value="{{ expense.id }}"></td>
+            <td>{{ expense.date }}</td>
+            <td>{{ expense.name }}</td>
+            <td>₹{{ expense.amount }}</td>
+            <td>{{ expense.category }}</td>
+            <td>
+                <div class="action-buttons">
+                    <button type="button" onclick="toggleEditForm({{ expense.id }})" class="edit-button">✏️ Edit</button>
+                    <form action="{% url 'delete_expense' expense.id %}" method="post" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="delete-button" onclick="return confirm('Delete this expense?')">🗑️ Delete</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+
+        <!-- Hidden inline edit form -->
+        <tr id="edit-form-{{ expense.id }}" style="display:none; background:#222;">
+            <td colspan="6">
+                <form action="{% url 'edit_expense' expense.id %}" method="post" style="display:flex; gap:10px;">
+                    {% csrf_token %}
+                    <input type="date" name="date" value="{{ expense.date|date:'Y-m-d' }}" required>
+                    <input type="text" name="name" value="{{ expense.name }}" required>
+                    <input type="number" step="0.01" name="amount" value="{{ expense.amount }}" required>
+                    <select name="category" required>
+                        {% for category in categories %}
+                            <option value="{{ category }}" {% if category == expense.category %}selected{% endif %}>{{ category }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit">💾 Save</button>
+                    <button type="button" onclick="toggleEditForm({{ expense.id }})" class="delete-button">❌ Cancel</button>
+                </form>
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6">No expense records found</td></tr>
+        {% endfor %}
+    </table>
+
+    <!-- Pagination -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin:20px 0; flex-wrap:nowrap; gap:15px;">
+
+        <!-- Left: Page info -->
+        <div style="white-space:nowrap; color:#E0E0E0; font-weight:bold;">
+            <h2>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</h2>
+        </div>
+
+        <!-- Right: Pagination controls -->
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:nowrap;">
+
+            <!-- Previous -->
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}">
+                    <button type="button" style="padding:6px 12px;">« Previous</button>
+                </a>
+            {% else %}
+                <button type="button" style="padding:6px 12px;" disabled>« Previous</button>
+            {% endif %}
+
+            <!-- Sliding window of 5 pages -->
+            {% for num in page_range %}
+                {% if page_obj.number == num %}
+                    <button type="button" class="edit-button" style="padding:6px 12px; font-weight:bold; height:40px;" disabled>{{ num }}</button>
+                {% else %}
+                    <a href="?page={{ num }}">
+                        <button type="button" style="padding:6px 12px;">{{ num }}</button>
+                    </a>
+                {% endif %}
+            {% endfor %}
+
+            <!-- Next -->
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}">
+                    <button type="button" style="padding:6px 12px;">Next »</button>
+                </a>
+            {% else %}
+                <button type="button" style="padding:6px 12px;" disabled>Next »</button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="chart-placeholder">
+        <canvas id="expenseLogChart"></canvas>
+    </div>
+</main>
+</div>
+
+<footer><p>Finance Manager © 2025</p></footer>
+
+<script>
+    function toggleDateDropdown() {
+    const dropdown = document.getElementById("dateDropdown");
+    const icon = document.getElementById("dateIcon");
+
+    const rect = icon.getBoundingClientRect();
+    dropdown.style.top = (rect.bottom + window.scrollY) + "px";
+    dropdown.style.left = (rect.left + window.scrollX) + "px";
+
+    if (dropdown.style.display === "none" || dropdown.style.display === "") {
+        dropdown.style.display = "block";
+        icon.style.transform = "rotate(180deg)";
+    } else {
+        dropdown.style.display = "none";
+        icon.style.transform = "rotate(0deg)";
+    }
+}
+
+// Close dropdown if clicked outside
+document.addEventListener("click", function(e) {
+    const dropdown = document.getElementById("dateDropdown");
+    const icon = document.getElementById("dateIcon");
+    if (!e.target.closest("#dateIcon") && !e.target.closest("#dateDropdown")) {
+        dropdown.style.display = "none";
+        icon.style.transform = "rotate(0deg)";
+    }
+});
+
+function filterByDate(date) {
+    const rows = document.querySelectorAll("table tr[id^='row-']");
+    rows.forEach(row => {
+        const dateCell = row.querySelector("td:nth-child(2)");
+        row.style.display = (!date || dateCell.textContent.trim() === date) ? "" : "none";
+    });
+
+    // hide dropdown & reset arrow
+    const dropdown = document.getElementById("dateDropdown");
+    const icon = document.getElementById("dateIcon");
+    dropdown.style.display = "none";
+    icon.style.transform = "rotate(0deg)";
+}
+
+function toggleCategoryDropdown() {
+    const dropdown = document.getElementById("categoryDropdown");
+    const icon = document.getElementById("categoryIcon");
+
+    // Calculate position below the icon
+    const rect = icon.getBoundingClientRect();
+    dropdown.style.top = (rect.bottom + window.scrollY) + "px";
+    dropdown.style.left = (rect.left + window.scrollX) + "px";
+
+    // Toggle display
+    if (dropdown.style.display === "none" || dropdown.style.display === "") {
+        dropdown.style.display = "block";
+        icon.style.transform = "rotate(180deg)";
+    } else {
+        dropdown.style.display = "none";
+        icon.style.transform = "rotate(0deg)";
+    }
+}
+
+// Close dropdown if clicked outside
+document.addEventListener("click", function(e) {
+    const dropdown = document.getElementById("categoryDropdown");
+    const icon = document.getElementById("categoryIcon");
+    if (!e.target.closest("#categoryIcon") && !e.target.closest("#categoryDropdown")) {
+        dropdown.style.display = "none";
+        icon.style.transform = "rotate(0deg)";
+    }
+});
+
+function filterByCategory(category) {
+    const rows = document.querySelectorAll("table tr[id^='row-']");
+    rows.forEach(row => {
+        const categoryCell = row.querySelector("td:nth-child(5)");
+        row.style.display = (!category || categoryCell.textContent.trim() === category) ? "" : "none";
+    });
+
+    // hide dropdown & reset arrow
+    const dropdown = document.getElementById("categoryDropdown");
+    const icon = document.getElementById("categoryIcon");
+    dropdown.style.display = "none";
+    icon.style.transform = "rotate(0deg)";
+}
+    //button inputs
+    function toggleFilter(id) {
+    let el = document.getElementById(id);
+    el.style.display = (el.style.display === "none") ? "block" : "none";
+    }
+    function toggleEditForm(id) {
+        const formRow = document.getElementById(`edit-form-${id}`);
+        formRow.style.display = (formRow.style.display === "none") ? "table-row" : "none";
+    }
+
+    // Select/Deselect all checkboxes
+    document.getElementById("select-all").addEventListener("change", function() {
+        document.querySelectorAll(".row-checkbox").forEach(cb => cb.checked = this.checked);
+    });
+
+    // Collect selected IDs before form submit
+    document.getElementById("delete-selected-form").addEventListener("submit", function(e) {
+        const selected = Array.from(document.querySelectorAll(".row-checkbox:checked")).map(cb => cb.value);
+        document.getElementById("selected-ids").value = selected.join(",");
+        if (selected.length === 0) {
+            e.preventDefault();
+            alert("Please select at least one income to delete.");
+        }
+    });
+
+    const expenseLabels ={{ labels|safe }};
+    const expenseData ={{ data|safe }};
+
+    new Chart(document.getElementById('expenseLogChart'), {
+        type: 'line',
+        data: {
+            labels: expenseLabels,
+            datasets: [{
+                label: 'Expenses (₹)',
+                data: expenseData,
+                borderColor: '#FF6384',
+                fill: false,
+                tension: 0.1
+            }]
+        },
+        options: {
+            plugins: { legend: { labels: { color: '#E0E0E0' } } },
+            scales: {
+                x: { ticks: { color: '#E0E0E0' } },
+                y: { ticks: { color: '#E0E0E0' } }
+            }
+        }
+    });
+</script>
+</body>
+</html>
+

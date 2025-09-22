@@ -1,0 +1,44 @@
+<!-- finance/sidebar.html -->
+ {% load static %}
+<link rel="stylesheet" href="{% static 'finance/sidebar.css' %}">
+
+<div class="sidebar" id="sidebar">
+  <a href="{% url 'dashboard' %}" class={% if request.resolver_match.url_name == 'dashboard' %}active{% endif %} data-tooltip="Dashboard"><span>🏠</span><span class="label">Dashboard</span></a>
+  <a href="{% url 'add_income' %}" class={% if request.resolver_match.url_name == 'add_income' %}active{% endif %} data-tooltip="Add Income"><span>💰</span><span class="label">Add Income</span></a>
+  <a href="{% url 'add_expense' %}" class={% if request.resolver_match.url_name == 'add_expense' %}active{% endif %} data-tooltip="Add Expense"><span>💸</span><span class="label">Add Expense</span></a>
+  <a href="{% url 'recurring_income' %}" class={% if request.resolver_match.url_name == 'recurring_income' %}active{% endif %} data-tooltip="Recurring Income"><span>🔁</span><span class="label">Recurring Income</span></a>
+  <a href="{% url 'recurring_expense' %}" class={% if request.resolver_match.url_name == 'recurring_expense' %}active{% endif %} data-tooltip="Recurring Expense"><span>⏱️</span><span class="label">Recurring Expense</span></a>
+  {% comment %} <a href="{% url 'expense_alerts' %}" class={% if request.resolver_match.url_name == 'expense_alerts' %}active{% endif %} data-tooltip="Expense Alerts"><span>🚨</span><span class="label">Expense Alerts</span></a> {% endcomment %}
+  <a href="{% url 'income_history' %}" class={% if request.resolver_match.url_name == 'income_history' %}active{% endif %} data-tooltip="Income History"><span>📜</span><span class="label">Income History</span></a>
+  <a href="{% url 'expense_log' %}" class={% if request.resolver_match.url_name == 'expense_log' %}active{% endif %} data-tooltip="Expense Log"><span>💳</span><span class="label">Expense Log</span></a>
+  {% comment %} <a href="{% url 'payment_analysis' %}" class={% if request.resolver_match.url_name == 'payment_analysis' %}active{% endif %} data-tooltip="Payment Analysis"><span>📊</span><span class="label">Payment Analysis</span></a>
+  <a href="{% url 'trends' %}" class={% if request.resolver_match.url_name == 'trends' %}active{% endif %} data-tooltip="Trends"><span>📈</span><span class="label">Trends</span></a>
+  <a href="{% url 'category_manager' %}" class={% if request.resolver_match.url_name == 'category_manager' %}active{% endif %} data-tooltip="Category Manager"><span>📂</span><span class="label">Category Manager</span></a> {% endcomment %}
+</div>
+<!-- Popup Messages -->
+<div id="popup-messages">
+  {% if messages %}
+      {% for message in messages %}
+          <div class="popup-message {{ message.tags }}">
+              {{ message }}
+          </div>
+      {% endfor %}
+  {% endif %}
+</div>
+
+<script>
+    // Sidebar toggle
+    setTimeout(() => {
+    document.querySelectorAll(".popup-message").forEach(msg => {
+      msg.classList.add("fade-out");
+      setTimeout(() => msg.remove(), 500);
+    });
+  }, 3000);  
+
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.getElementById('toggleBtn');
+
+    toggleBtn.addEventListener('click', () => {
+      sidebar.classList.toggle('collapsed');
+    });
+</script>

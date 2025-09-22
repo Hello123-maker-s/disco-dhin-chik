@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Add Income - Finance Manager</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'finance/styles.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<header><h1>Add Income</h1></header>
+<div style="display: flex; min-height: calc(100vh - 100px);">
+{% include 'finance/sidebar.html' %}
+
+<!-- Django Messages -->
+    {% if messages %}
+    <div id="popup-messages">
+        {% for message in messages %}
+        <div class="popup-message {{ message.tags }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+<main style="flex: 1;">
+    <h1 class="page-title">💰 Add Income</h1>
+
+    <!-- Add Income Form -->
+    <form method="POST" >
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Add Income</button>
+    </form>
+    <h2 style="text-align: center;">Already have a csv of Incomes to add? Upload it here ⬇️</h2>
+    <form method="POST" enctype="multipart/form-data" action="{% url 'upload_income_csv' %}" style="margin-bottom:20px; align-items: center;">
+        {% csrf_token %}
+        <label for="csv_file">Upload Income CSV (MAX limit: 1MB)</label>
+        <input type="file" name="csv_file" accept=".csv" required>
+        <button type="submit">Upload</button>
+    </form>
+
+    <div class="chart-placeholder" style="height:300px;">
+        <canvas id="incomeChart"></canvas>
+    </div>
+</main>
+</div>
+
+<footer><p>Finance Manager © 2025</p></footer>
+
+<script>
+    const ctxIncome = document.getElementById('incomeChart');
+    new Chart(ctxIncome, {
+        type: 'doughnut',
+        data: {
+            labels: {{ categories|safe }},
+            datasets: [{
+                data: {{ chart_data|safe }},
+                backgroundColor: ['#00BFA6', '#36A2EB', '#cea540ff', '#FF6384', '#8E44AD', '#E67E22', '#077707ff', '#0e108aff', '#a91606ff', '#07483bff', '#95A5A6']
+            }]
+        },
+        options: {
+            plugins: { legend: { labels: { color: '#E0E0E0', font: { size: 14 } } } },
+            responsive: true,
+            maintainAspectRatio: false
+        }
+});
+</script>
+</body>
+</html>

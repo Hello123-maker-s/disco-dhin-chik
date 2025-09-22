@@ -1,0 +1,27 @@
+<!-- budget/sidebar.html -->
+ {% load static %}
+<link rel="stylesheet" href="{% static 'budget/sidebar.css' %}">
+
+<div class="sidebar" id="sidebar">
+    <a href="{% url 'add_budget' %}" class={% if request.resolver_match.url_name == 'add_budget' %}active{% endif %} data-tooltip="Create Budget"><span>➕</span><span class="label">Create Budget</span></a>
+
+    <a href="{% url 'budget_list' %}" class={% if request.resolver_match.url_name == 'budget_list' %}active{% endif %} data-tooltip="Budget History"><span>📜</span><span class="label">Budget History</span></a>
+
+        <!-- budget/sidebar.html -->
+    {% comment %} {% if budget and budget.id %}
+        <a href="{% url 'xero_budget_mode' budget.id %}" class="{% if request.resolver_match.url_name == 'xero_budget_mode' %}active{% endif %}" data-tooltip="Zero Based Budget">
+            <span>🟰</span><span class="label">Zero Based Budget</span>
+        </a>
+    {% endif %} {% endcomment %}
+</div>
+
+
+<script>
+    // Sidebar toggle
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.getElementById('toggleBtn');
+
+    toggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('collapsed');
+    });
+</script>

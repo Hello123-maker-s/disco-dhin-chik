@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Finance Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'finance/menu.css' %}">
+</head>
+<body>
+
+    <div class="dashboard-links">
+        <a href="{% url 'add_income' %}"><span>💰</span> Add Income</a>
+        <a href="{% url 'add_expense' %}"><span>💸</span> Add Expense</a>
+        <a href="{% url 'recurring_income' %}"><span>🔁</span> Recurring Income</a>
+        <a href="{% url 'recurring_expense' %}"><span>⏱️</span> Recurring Expense</a>
+        <a href="{% url 'expense_alerts' %}"><span>🚨</span> Expense Alerts</a>
+        <a href="{% url 'income_history' %}"><span>📜</span> Income History</a>
+        <a href="{% url 'expense_log' %}"><span>💳</span> Expense Log</a>
+        <a href="{% url 'payment_analysis' %}"><span>📊</span> Payment Analysis</a>
+        <a href="{% url 'trends' %}"><span>📈</span> Trends</a>
+        <a href="{% url 'category_manager' %}"><span>📂</span> Category Manager</a>
+    </div>
+
+</body>
+</html>

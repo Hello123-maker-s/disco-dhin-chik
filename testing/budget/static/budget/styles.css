@@ -1,0 +1,272 @@
+/* Dark Mode Theme */
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #121212;
+    color: #E0E0E0;
+}
+
+/* Layout */
+header, footer {
+    background: linear-gradient(135deg, #3C0052 0%, #8f6003 100%);
+    padding: 15px 20px;
+    text-align: center;
+}
+
+main {
+    padding: 20px;
+    max-width: 1200px;
+    margin: auto;
+}
+
+.page-title {
+    text-align: center;
+    margin-bottom: 20px;
+
+    /* Gradient text */
+    background: linear-gradient(135deg, #7b2ff7, #f107a3);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+}
+
+
+/* Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+    background-color: #1E1E1E;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+}
+
+table th, table td {
+    border: 1px solid #333;
+    padding: 12px 10px;
+    text-align: center;
+}
+
+table th {
+    background-color: #00BFA6;
+    color: black;
+    font-weight: bold;
+}
+
+table tr:nth-child(even) {
+    background-color: #2A2A2A;
+}
+
+/* Forms */
+form {
+    background-color: #1E1E1E;
+    padding: 20px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+input, select, textarea, button {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px;
+    margin: 8px 0;
+    border-radius: 5px;
+    border: none;
+    outline: none;
+}
+
+input, select, textarea {
+    background-color: #2C2C2C;
+    color: #E0E0E0;
+}
+
+button {
+    background-color: #00BFA6;
+    color: black;
+    font-weight: bold;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+button:hover {
+    background-color: #51f8e1;
+}
+
+.edit-button {
+    background-color: #c97610;
+    color: black;
+}
+
+.delete-button {
+    background-color: #981c37;
+    color: white;
+}
+
+.edit-button:hover {
+    background-color: #e0b03a;
+}
+
+.delete-button:hover {
+    background-color: #e03a2e;
+}
+
+.action-buttons button{
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+    width: 100px;        /* fixed same width */
+    padding: 8px 0;      /* equal height */
+    text-align: center;  
+    display: inline-block;
+}
+
+.action-buttons form {
+    margin: 0;                /* remove extra spacing */
+    padding: 0;
+    display: inline-flex;     /* keep form same behavior as button */
+}
+
+/* Cards */
+.card {
+    background-color: #1E1E1E;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+}
+
+/* Chart placeholder */
+.chart-placeholder {
+    background-color: #2C2C2C;
+    height: 250px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #888;
+    margin-top: 15px;
+}
+
+/* Responsive Tables with Labels */
+@media (max-width: 768px) {
+    table, thead, tbody, th, td, tr {
+        display: block;
+        width: 100%;
+    }
+
+    table tr {
+        margin-bottom: 15px;
+        border-bottom: 2px solid #333;
+        padding-bottom: 10px;
+    }
+
+    table td {
+        text-align: right;
+        padding-left: 50%;
+        position: relative;
+        word-wrap: break-word;
+        border: none;
+        border-bottom: 1px solid #333;
+    }
+
+    table td::before {
+        content: attr(data-label);
+        position: absolute;
+        left: 10px;
+        width: 45%;
+        text-align: left;
+        font-weight: bold;
+        color: #aaa;
+        white-space: nowrap;
+    }
+
+    table th {
+        display: none;
+    }
+}
+
+/* Extra Responsiveness for All Content */
+@media (max-width: 1024px) {
+    main {
+        padding: 15px;
+    }
+    form, .card, .chart-placeholder {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    header, footer {
+        padding: 10px;
+        font-size: 14px;
+    }
+    button, input, select, textarea {
+        font-size: 14px;
+        padding: 8px;
+    }
+    .chart-placeholder {
+        height: 200px;
+    }
+}
+
+#budgetChart {
+    width: 55%;
+    height: 250px;
+    max-width: none;
+    margin: auto;
+    display: block;
+}
+
+/* Popup container (top center stack) */
+#popup-messages {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;  /* space between multiple messages */
+}
+
+/* Each popup */
+.popup-message {
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 15px;
+    color: #fff;
+    min-width: 250px;
+    max-width: 350px;
+    text-align: center;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    animation: drop-down 0.5s ease-out;
+    opacity: 1;
+    transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+/* Success, error, info colors */
+.popup-message.success { background: #28a745; }   /* green */
+.popup-message.error { background: #dc3545; }
+.popup-message.warning { background: #ffc107; }     /* red */
+.popup-message.info { background: #17a2b8; }      /* blue */
+
+/* Drop-down effect */
+@keyframes drop-down {
+    from { transform: translateY(-100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Fade-out */
+.fade-out {
+    opacity: 0;
+    transform: translateY(-100%);
+}
+
+

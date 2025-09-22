@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Payment Analysis - Finance Manager</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'finance/styles.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<header><h1>Payment Analysis</h1></header>
+{% include 'finance/menu.html' %}
+<main>
+    <table>
+        <tr><th>Payment Method</th><th>Total Spent</th></tr>
+        <tr><td>Credit Card</td><td>$1,200</td></tr>
+        <tr><td>Cash</td><td>$900</td></tr>
+        <tr><td>Bank Transfer</td><td>$1,000</td></tr>
+    </table>
+    <div class="chart-placeholder"><canvas id="paymentChart"></canvas></div>
+</main>
+<a href="{% url 'dashboard' %}" class="back-btn">⬅ Back to Dashboard</a>
+
+<footer><p>Finance Manager © 2025</p></footer>
+
+<script>
+new Chart(document.getElementById('paymentChart'), {
+    type: 'pie',
+    data: {
+        labels: ['Credit Card', 'Cash', 'Bank Transfer'],
+        datasets: [{
+            data: [1200, 900, 1000],
+            backgroundColor: ['#36A2EB', '#FFCE56', '#FF6384']
+        }]
+    },
+    options: { plugins: { legend: { labels: { color: '#E0E0E0' } } } }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'budget/styles.css' %}">
+    <title>Budget List</title>
+</head>
+<body>
+<header>
+    <h1 class="page-title">📜 Budgets</h1><a href="{% url 'dashboard' %}">Dashboard</a>
+</header>
+
+<div id="popup-messages">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="popup-message {{ message.tags }}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+</div>
+<div style="display: flex; min-height: calc(100vh - 100px);">
+{% include 'budget/sidebar.html' %}
+<main style="flex:1; padding:20px;">
+    <h1 class="page-title">📜 Budgets</h1>
+    <!-- Summary Card -->
+    <div class="card" style="margin-bottom:20px; padding:20px;">
+        <h2 style="text-align:center;">📊Overall Budget Summary</h2>
+        <div style="display:flex; justify-content:space-around; align-items:center; flex-wrap:wrap;">
+            <div style="text-align:center; margin:10px;">
+                <h3>Total Budgets</h3>
+                <p style="font-size:1.5em;">{{ budgets.count }}</p>
+            </div>
+            <div style="text-align:center; margin:10px;">
+                <h3>Total Spent</h3>
+                <p style="font-size:1.5em; color:#c97610;">
+                    {{ total_spent }}
+                </p>
+            </div>
+            <div style="text-align:center; margin:10px;">
+                <h3>Total Remaining</h3>
+                <p style="font-size:1.5em; color:#00BFA6;">
+                    {{ total_remaining }}
+                </p>
+            </div>
+        </div>
+
+        <!-- Overall Budget Utilization Bar -->
+        <div style="margin-top:20px; background:#333; border-radius:8px; overflow:hidden; height:25px;">
+            <div style="
+                width:{{ overall_percent|floatformat:0 }}%;
+                height:100%;
+                background:{% if overall_percent > 100 %}#981c37
+                        {% elif overall_percent >= 80 %}#c97610
+                        {% else %}#00BFA6{% endif %};
+                transition: width 0.5s ease;
+            " title="{{ total_spent }} / {{ total_amount }}">
+            </div>
+        </div>
+        <p style="text-align:center; margin-top:5px; color:#E0E0E0;">
+            Overall Budget Utilization: {{ overall_percent|floatformat:0 }}%
+        </p>
+    </div>
+
+    <!-- Manage Budgets Card -->
+    <div class="card" style="display:flex; align-items:center; justify-content:space-between;">
+        <h2>⚙️ Manage Budgets</h2>
+        <div style="display:flex; gap:10px;">
+            <a href="{% url 'add_budget' %}"><button>➕ Add New Budget</button></a>
+
+            <form id="edit-selected-form" method="post" style="margin:0; padding:0;">
+                {% csrf_token %}
+                <input type="hidden" name="selected_id" id="edit-selected-id">
+                <button type="button" class="edit-button" id="edit-selected-btn">✏️ Edit Selected</button>
+            </form>
+
+            <form id="delete-selected-form" action="{% url 'delete_selected_budgets' %}" method="post" style="margin:0; padding:0;">
+                {% csrf_token %}
+                <input type="hidden" name="selected_ids" id="selected-ids">
+                <button type="submit" class="delete-button" onclick="return confirm('Delete selected budgets?')">🗑️ Delete Selected</button>
+            </form>
+
+            <form action="{% url 'bulk_delete_budget' %}" method="post" style="margin:0; padding:0;">
+                {% csrf_token %}
+                <button type="submit" class="delete-button" onclick="return confirm('Delete all budgets?')">🗑️ Delete All</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Budgets Table -->
+    <table style="width:100%; border-collapse: collapse; color:#E0E0E0;">
+        <thead>
+            <tr style="background:#333;">
+                <th style="padding:10px;"><input type="checkbox" id="select-all"></th>
+                <th style="padding:10px; text-align:center;">Name</th>
+                <th style="padding:10px; text-align:center;">Period</th>
+                <th style="padding:10px; text-align:center;">Total</th>
+                <th style="padding:10px; text-align:center;">Spent</th>
+                <th style="padding:10px; text-align:center;">Remaining</th>
+                <th style="padding:10px; text-align:center;">Progress</th>
+                <th style="padding:10px; text-align:center;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for data in budget_data %}
+            <tr style="border-bottom:1px solid #444; transition:background 0.3s;">
+                <td style="text-align:center; padding:8px;">
+                    <input type="checkbox" class="row-checkbox" data-budget-id="{{ data.obj.id }}">
+                </td>
+                <td style="padding:8px;">{{ data.obj.name }}</td>
+                <td style="padding:8px; text-align:center;">{{ data.obj.start_date }} → {{ data.obj.end_date }}</td>
+                <td style="padding:8px; text-align:center;">₹{{ data.obj.total_amount }}</td>
+                <td style="padding:8px; text-align:center;">₹{{ data.spent }}</td>
+                <td style="padding:8px; text-align:center;">₹{{ data.remaining }}</td>
+                <td style="padding:8px; position: relative;">
+                    <div style="background:#333; border-radius:6px; overflow:hidden; height:20px; position: relative;">
+                        <div style="
+                            height:100%;
+                            width:{{ data.percent|floatformat:0 }}%;
+                            background:{% if data.percent > 100 %}#981c37
+                                    {% elif data.percent >= 80 %}#c97610
+                                    {% else %}#00BFA6{% endif %};
+                            transition: width 0.5s ease;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: #fff;
+                            font-size: 0.8em;
+                            font-weight: bold;
+                        " title="{{ data.spent }} / {{ data.obj.total_amount }}">
+                            {{ data.percent|floatformat:0 }}%
+                        </div>
+                    </div>
+                </td>
+
+                <td style="text-align:center; padding:8px;">
+                    <a href="{% url 'budget_detail' data.obj.id %}"><button class="edit-button">View</button></a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+        <!-- Pagination -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin:20px 0; flex-wrap:nowrap; gap:15px;">
+
+        <!-- Left: Page info -->
+        <div style="white-space:nowrap; color:#E0E0E0; font-weight:bold;">
+            <h2>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</h2>
+        </div>
+
+        <!-- Right: Pagination controls -->
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:nowrap;">
+
+            <!-- Previous -->
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}">
+                    <button type="button" style="padding:6px 12px;">« Previous</button>
+                </a>
+            {% else %}
+                <button type="button" style="padding:6px 12px;" disabled>« Previous</button>
+            {% endif %}
+
+            <!-- Sliding window of 5 pages -->
+            {% for num in page_range %}
+                {% if page_obj.number == num %}
+                    <button type="button" class="edit-button" style="padding:6px 12px; font-weight:bold; height:40px;" disabled>{{ num }}</button>
+                {% else %}
+                    <a href="?page={{ num }}">
+                        <button type="button" style="padding:6px 12px;">{{ num }}</button>
+                    </a>
+                {% endif %}
+            {% endfor %}
+
+            <!-- Next -->
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}">
+                    <button type="button" style="padding:6px 12px;">Next »</button>
+                </a>
+            {% else %}
+                <button type="button" style="padding:6px 12px;" disabled>Next »</button>
+            {% endif %}
+        </div>
+    </div>
+    
+</main>
+</div>
+
+<footer>
+    <p>Budget App - Personal Finance Manager</p>
+</footer>
+
+<script>
+    // Edit Selected Button
+    const editBtn = document.getElementById("edit-selected-btn");
+    const editForm = document.getElementById("edit-selected-form");
+    const editSelectedInput = document.getElementById("edit-selected-id");
+
+    editBtn.addEventListener("click", function() {
+        const selected = document.querySelectorAll(".row-checkbox:checked");
+        if (selected.length !== 1) {
+            alert("Please select exactly one budget to edit.");
+            return;
+        }
+
+        const budgetId = selected[0].getAttribute("data-budget-id");
+        // Navigate to edit page
+        window.location.href = `/budget/edit/${budgetId}/`;
+    });
+
+    // Select/Deselect all checkboxes
+    document.getElementById("select-all").addEventListener("change", function() {
+        document.querySelectorAll(".row-checkbox").forEach(cb => cb.checked = this.checked);
+    });
+
+    // Populate selected IDs before submitting "Delete Selected" form
+    const deleteSelectedForm = document.getElementById("delete-selected-form");
+    deleteSelectedForm.addEventListener("submit", function(e) {
+        const selectedIds = Array.from(document.querySelectorAll(".row-checkbox:checked"))
+                                 .map(cb => cb.getAttribute("data-budget-id"))
+                                 .join(",");
+        if (!selectedIds) {
+            alert("Please select at least one budget to delete.");
+            e.preventDefault();
+            return;
+        }
+        document.getElementById("selected-ids").value = selectedIds;
+    });
+
+    // Auto-hide popup messages
+    setTimeout(() => {
+        document.querySelectorAll(".popup-message").forEach(msg => {
+            msg.classList.add("fade-out");
+            setTimeout(() => msg.remove(), 500);
+        });
+    }, 3000);
+
+    // Optional: row hover effect
+    document.querySelectorAll("tbody tr").forEach(row => {
+        row.addEventListener("mouseenter", () => row.style.background = "#2a2a2a");
+        row.addEventListener("mouseleave", () => row.style.background = "#222");
+    });
+</script>
+
+</body>
+</html>

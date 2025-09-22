@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Budget Detail - {{ budget.name }}</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'budget/styles.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<header>
+    <h1 class="page-title">{{ budget.name }} ({{ budget.start_date }} → {{ budget.end_date }})</h1>
+</header>
+
+<div id="popup-messages">
+  {% if messages %}
+      {% for message in messages %}
+          <div class="popup-message {{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+  {% endif %}
+</div>
+<div style="display: flex; min-height: calc(100vh - 100px);">
+{% include 'budget/sidebar.html' %}
+<main style="flex: 1;">
+    <h1 class="page-title">{{ budget.name }} ({{ budget.start_date }} → {{ budget.end_date }})</h1>
+    <!-- Summary Card -->
+    <div class="card" style="margin-bottom:20px; padding:20px;">
+        <h2 style="text-align:center;">Summary</h2>
+        <p style="text-align:center;"><strong>Total Available Income for this Period:</strong> {{ available_income|floatformat:2 }}</p>
+        <div style="display:flex; justify-content:space-around; flex-wrap:wrap;">
+            <div style="text-align:center; margin:10px;">
+                <h3>Total Categories</h3>
+                <p style="font-size:1.5em;">{{ category_data|length }}</p>
+            </div>
+            <div style="text-align:center; margin:10px;">
+                <h3>Total Spent</h3>
+                <p style="font-size:1.5em; color:#c97610;">{{ total_spent }}</p>
+            </div>
+            <div style="text-align:center; margin:10px;">
+                <h3>Total Limit</h3>
+                <p style="font-size:1.5em; color:#00BFA6;">{{ total_limit }}</p>
+            </div>
+        </div>
+
+        <!-- Overall Utilization Bar -->
+        <div style="margin-top:20px; background:#333; border-radius:8px; overflow:hidden; height:25px;">
+            <div style="
+                width:{{ overall_percent|floatformat:0 }}%;
+                height:100%;
+                background:{% if overall_percent >= 100 %}#981c37
+                         {% elif overall_percent >= 80 %}#c97610
+                         {% else %}#00BFA6{% endif %};
+                transition: width 0.5s ease;">
+            </div>
+        </div>
+        <p style="text-align:center; margin-top:5px; color:#E0E0E0;">
+            Overall Category Utilization: {{ overall_percent|floatformat:0 }}%
+        </p>
+    </div>
+
+    <!-- Manage Categories Card --> 
+        <div style="background:#222; padding:15px; border-radius:10px; margin:20px 0; display:flex; align-items:center; justify-content:space-between;"> 
+            <h2 style="margin:0;">⚙️ Manage Categories</h2> 
+            <div style="display:flex; gap:10px; align-items:center;"> 
+                <button type="button" id="toggleForm" style="height:40px; padding:0 15px; width: auto;">➕ Add New Category</button> 
+                <form id="delete-selected-form" action="{% url 'delete_selected_categories' %}" method="post" style="margin:0; padding:0; background:transparent;">
+                {% csrf_token %} 
+                <input type="hidden" name="selected_ids" id="selected-ids"> 
+                <input type="hidden" name="budget_id" value="{{ budget.id }}"> <button type="submit" class="delete-button" style="height:40px; padding:0 15px;" onclick="return confirm('Delete selected categories?')">🗑️ Delete Selected</button> 
+                </form> 
+                <form action="{% url 'bulk_delete_categories' %}" method="post" style="margin:0; padding:0; background:transparent;"> {% csrf_token %} <input type="hidden" name="budget_id" value="{{ budget.id }}"> 
+                <button type="submit" class="delete-button" style="height:40px; padding:0 15px;" onclick="return confirm('Delete all categories?')">🗑️ Delete All</button> 
+                </form> 
+            </div> 
+        </div>
+
+    <!-- Categories Table -->
+    <div class="card">
+        <h2 style="text-align:center;">Categories</h2>
+        <table style="width:100%; border-collapse:collapse; color:#E0E0E0;">
+            <thead>
+                <tr style="background:#333;">
+                    <th style="padding:10px;"><input type="checkbox" id="select-all"></th>
+                    <th style="padding:10px; text-align:center;">Category</th>
+                    <th style="padding:10px; text-align:center;">Spent / Limit</th>
+                    <th style="padding:0.01px; text-align:center;">(Total: {{ total_percent_of_budget|floatformat:2 }}) % of Budget</th>
+                    <th style="padding:10px; text-align:center;">Progress</th>
+                    <th style="padding:10px; text-align:center;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cat in category_data %}
+                <tr style="border-bottom:1px solid #444;">
+                    <td style="text-align:center; padding:8px;">
+                        <input type="checkbox" class="category-checkbox" data-category-id="{{ cat.obj.id }}">
+                    </td>
+                    <td style="padding:8px;">{{ cat.obj.category }}</td>
+                    <td style="padding:8px; text-align:center;">{{ cat.spent }} / {{ cat.limit }}</td>
+                    <td style="padding:8px; text-align:center;">{{ cat.percent_of_budget|floatformat:2 }}%</td>
+                    <td style="padding:8px;">
+                        <div style="background:#333; border-radius:6px; overflow:hidden; height:20px; position:relative;">
+                            <div style="
+                                height:100%;
+                                width:{{ cat.percent|floatformat:0 }}%;
+                                background:{% if cat.percent >= 100 %}#981c37
+                                         {% elif cat.percent >= 80 %}#c97610
+                                         {% else %}#00BFA6{% endif %};
+                                transition: width 0.5s ease;
+                                position:relative;">
+                                <span style="position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); color:#E0E0E0; font-size:12px; font-weight:bold;">
+                                    {{ cat.percent|floatformat:0 }}%
+                                </span>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="padding:8px; text-align:center;">
+                        <button class="edit-button" style="padding:4px 10px;"
+                                onclick="openEditForm({{ cat.obj.id }}, '{{ cat.obj.category }}', {{ cat.limit }})">
+                            ✏️ Edit
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Add/Edit Category Form -->
+    <div id="addCategoryForm" class="card" style="display:none; margin-top:20px;">
+        <h2 style="text-align:center;">Add / Edit Category</h2>
+        <form method="post" action="{% url 'add_category' budget.id %}">
+            {% csrf_token %}
+            <p>
+                <label for="id_category">Category:</label>
+                {{ form.category }}
+            </p>
+            <p>
+                <label for="id_limit_type">Limit Type:</label>
+                {{ form.limit_type }}
+            </p>
+            <p>
+                <label>Limit:</label>
+                {{ form.limit_value }}
+                {% if form.fields.limit_value.help_text %}
+                    <small>{{ form.fields.limit_value.help_text }}</small>
+                {% endif %}
+            </p>
+            <button type="submit" class="button">💾 Save Category</button>
+            <button type="button" class="delete-button" id="cancelForm">❌ Cancel</button>
+        </form>
+    </div>
+
+    <!-- Action Buttons -->
+    <div style="margin-top:15px;">
+        <a href="{% url 'budget_list' %}">
+            <button class="edit-button">⬅ Back to Budgets</button>
+        </a>
+    </div>
+
+    <!-- Chart -->
+    <div class="card">
+        <h2 style="text-align:center;">Spending Chart</h2>
+        <canvas id="budgetChart"></canvas>
+    </div>
+</main>
+</div>
+
+<footer>
+    <p>Budget App - Personal Finance Manager</p>
+</footer>
+
+<script>
+    // Show Add Form
+    document.getElementById("toggleForm").addEventListener("click", () => {
+        document.getElementById("addCategoryForm").style.display = "block";
+        document.getElementById("toggleForm").style.display = "none";
+    });
+
+    // Cancel Add/Edit
+    document.getElementById("cancelForm").addEventListener("click", () => {
+        const form = document.getElementById("addCategoryForm").querySelector("form");
+        form.reset();
+        form.action = "{% url 'add_category' budget.id %}";
+        document.getElementById("addCategoryForm").style.display = "none";
+        document.getElementById("toggleForm").style.display = "inline-block";
+    });
+
+    // Open Edit Form
+    function openEditForm(id, categoryName, limit) {
+        const formDiv = document.getElementById("addCategoryForm");
+        const form = formDiv.querySelector("form");
+
+        formDiv.style.display = "block";
+        document.getElementById("toggleForm").style.display = "none";
+
+        form.action = "{% url 'edit_category' 0 %}".replace('0', id);
+        form.querySelector("#id_category").value = categoryName;
+        form.querySelector("#id_limit").value = limit;
+
+        formDiv.scrollIntoView({ behavior: "smooth" });
+    }
+
+    // Select/Deselect All
+    document.getElementById("select-all").addEventListener("change", function() {
+        document.querySelectorAll(".category-checkbox").forEach(cb => cb.checked = this.checked);
+    });
+
+    // Delete Selected Form
+    document.getElementById("delete-selected-form").addEventListener("submit", function(e) {
+        const selectedIds = Array.from(document.querySelectorAll(".category-checkbox:checked"))
+                                 .map(cb => cb.getAttribute("data-category-id")).join(",");
+        if (!selectedIds) { alert("Select at least one category."); e.preventDefault(); return; }
+        document.getElementById("selected-ids").value = selectedIds;
+    });
+
+    // Popup fadeout
+    setTimeout(() => {
+        document.querySelectorAll(".popup-message").forEach(msg => {
+            msg.classList.add("fade-out");
+            setTimeout(() => msg.remove(), 500);
+        });
+    }, 3000);
+
+    // Chart.js
+    // Chart.js
+const labels = [{% for cat in category_data %}"{{ cat.obj.category }}",{% endfor %}];
+const data = [{% for cat in category_data %}{{ cat.spent }},{% endfor %}];
+const limits = [{% for cat in category_data %}{{ cat.limit }},{% endfor %}];
+const backgroundColors = [
+    {% for cat in category_data %}
+        {% if cat.percent >= 100 %}'#981c37',
+        {% elif cat.percent >= 80 %}'#c97610',
+        {% else %}'#00BFA6',
+        {% endif %}
+    {% endfor %}
+];
+
+new Chart(document.getElementById('budgetChart'), {
+    type: 'bar',  // ✅ Changed from 'doughnut' to 'bar'
+    data: {
+        labels: labels,
+        datasets: [{
+            label: 'Spent',
+            data: data,
+            backgroundColor: backgroundColors,
+            borderColor: '#222',
+            borderWidth: 1
+        },
+        {
+            label: 'Limit',
+            data: limits,
+            backgroundColor: 'rgba(220, 53, 69, 0.3)', // 🔴 light red
+            borderColor: '#dc3545', // 🔴 solid red
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: { 
+                position: 'bottom',
+                labels: { color: '#E0E0E0', font: { size: 14 } }
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(ctx) {
+                        const i = ctx.dataIndex;
+                        return ctx.dataset.label + ': ' + ctx.formattedValue + 
+                               (ctx.dataset.label === 'Spent' ? ' / ' + limits[i] : '');
+                    }
+                },
+                bodyFont: { size: 14 }
+            }
+        },
+        scales: {
+            x: { ticks: { color: '#E0E0E0' }, grid: { color: '#333' } },
+            y: { ticks: { color: '#E0E0E0' }, grid: { color: '#333' } }
+        }
+    }
+});
+
+</script>
+</body>
+</html>

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finance Dashboard</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'finance/dashboard.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<header><h1>Finance Dashboard</h1><a href="{% url 'logout' %}">Logout</a><a href="{% url 'budget_list' %}">budget</a><a href="{% url 'savings_dashboard' %}">savings</a></header>
+<div style="display: flex; min-height: calc(100vh - 100px);">
+{% include 'finance/sidebar.html' %}
+
+{% if messages %}
+<div id="popup-messages">
+    {% for message in messages %}
+        <div class="popup-message {{ message.tags }}">
+            {{ message }}
+        </div>
+    {% endfor %}
+    </div>
+{% endif %}
+
+<main style="flex: 1; padding: 20px;">
+
+    <div class="marquee">
+        <span id="marquee-text">
+        {% if last_transaction %}
+            Last Transaction: 
+            {% if last_transaction.category %}
+                {{ last_transaction.category }} - 
+            {% endif %}
+            ₹{{ last_transaction.amount }} 
+            on {{ last_transaction.date }}
+        {% else %}
+            <p>No transactions yet.</p>
+        {% endif %}
+        {% if due_expenses %}
+            &nbsp;|&nbsp; Pending Expenses:
+            {% for expense in due_expenses %}
+                {{ expense.category }} - ₹{{ expense.amount }} (Due: {{ expense.next_due_date }})
+                {% if not forloop.last %}, {% endif %}
+            {% endfor %}
+        {% endif %}
+        </span>
+    </div>
+
+<div class="dashboard-container">
+    <h1>👋 Welcome {{ user.username }}!</h1>
+
+    <!-- Summary Boxes -->
+    <div class="summary-container">
+        <a href="{% url 'income_history' %}" class="summary-box income-box">
+            <h3>Total Income</h3>
+            <p>₹{{ total_income }}</p>
+        </a>
+        <a href="{% url 'expense_log' %}" class="summary-box expense-box">
+            <h3>Total Expense</h3>
+            <p>₹{{ total_expense }}</p>
+        </a>
+        <div class="summary-box balance-box">
+            <h3>Balance</h3>
+            <p>₹{{ balance }}</p>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="chart-container">
+        <canvas id="incomeExpenseChart"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="monthlyTrendsChart"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="categoryExpenseChart"></canvas>
+    </div>
+</div>
+
+<!-- Chart.js Scripts -->
+<script> 
+    window.addEventListener("load", function() {
+    const marquee = document.getElementById("marquee-text");
+    const textWidth = marquee.offsetWidth; // pixel width of text
+    const containerWidth = marquee.parentElement.offsetWidth;
+
+    // duration formula → longer text = longer duration
+    const duration = (textWidth + containerWidth) / 50; // tweak "50" for speed factor
+
+    marquee.style.animationDuration = duration + "s";
+    });
+    const months = {{ months|safe }};
+    const incomeData = {{ income_data|safe }};
+    const expenseData = {{ expense_data|safe }};
+    const weeks = {{ weeks|safe }};
+    const weeklyIncomeData = {{ weekly_income_data|safe }};
+    const weeklyExpenseData = {{ weekly_expense_data|safe }};
+    const categoryLabels = {{ category_labels|safe }};
+    const categoryValues = {{ category_values|safe }};
+
+    // Income vs Expense (Weekly - REAL DATA)
+    const ctx1 = document.getElementById('incomeExpenseChart').getContext('2d');
+    new Chart(ctx1, {
+        type: 'bar',
+        data: {
+            labels: weeks,
+            datasets: [
+                {
+                    label: 'Income',
+                    data: weeklyIncomeData,
+                    backgroundColor: 'rgba(123, 47, 247, 0.7)',
+                    borderColor: 'rgba(123, 47, 247, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Expense',
+                    data: weeklyExpenseData,
+                    backgroundColor: 'rgba(241, 7, 163, 0.7)',
+                    borderColor: 'rgba(241, 7, 163, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { labels: { color: 'white' } },
+                title: { display: true, text: 'Income vs Expense (Weekly)', color: 'white' }
+            },
+            scales: {
+                x: { ticks: { color: 'white' }, grid: { color: '#333' } },
+                y: { ticks: { color: 'white' }, grid: { color: '#333' } }
+            }
+        }
+    });
+
+    // Monthly Trends (line)
+    const ctx2 = document.getElementById('monthlyTrendsChart').getContext('2d');
+    new Chart(ctx2, {
+        type: 'line',
+        data: {
+            labels: months,
+            datasets: [
+                {
+                    label: 'Income',
+                    data: incomeData,
+                    borderColor: 'rgba(123, 47, 247, 1)',
+                    backgroundColor: 'rgba(123, 47, 247, 0.3)',
+                    fill: true,
+                    tension: 0.3
+                },
+                {
+                    label: 'Expense',
+                    data: expenseData,
+                    borderColor: 'rgba(241, 7, 163, 1)',
+                    backgroundColor: 'rgba(241, 7, 163, 0.3)',
+                    fill: true,
+                    tension: 0.3
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { labels: { color: 'white' } },
+                title: { display: true, text: 'Monthly Trends', color: 'white' }
+            }
+        }
+    });
+
+    // Category-wise Expense
+    const ctx3 = document.getElementById('categoryExpenseChart').getContext('2d');
+    new Chart(ctx3, {
+        type: 'doughnut',
+        data: {
+            labels: categoryLabels,
+            datasets: [{
+                data: categoryValues,
+                backgroundColor: [
+                    'rgba(123, 47, 247, 0.7)',
+                    'rgba(241, 7, 163, 0.7)',
+                    'rgba(255, 193, 7, 0.7)',
+                    'rgba(76, 175, 80, 0.7)',
+                    'rgba(255, 87, 34, 0.7)',
+                    'rgba(96, 125, 139, 0.7)',
+                    'rgba(97, 74, 6, 0.7)',
+                    'rgba(82, 8, 75, 0.7)',
+                    'rgba(9, 133, 6, 0.7)',
+                    'rgba(16, 38, 185, 0.7)',
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { labels: { color: 'white' } },
+                title: { display: true, text: 'Category-wise Expense', color: 'white' }
+            }
+        }
+    });
+</script>
+</main>
+</div>
+
+<footer><p>© 2023 Finance Dashboard. All rights reserved.</p></footer>
+
+</body>
+</html>

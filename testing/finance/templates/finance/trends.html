@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Trends - Finance Manager</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'finance/styles.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<header><h1>Trends</h1></header>
+{% include 'finance/menu.html' %}
+<main>
+    <div class="chart-placeholder"><canvas id="trendsChart"></canvas></div>
+    <table>
+        <tr><th>Month</th><th>Income</th><th>Expenses</th></tr>
+        <tr><td>June</td><td>$4,800</td><td>$3,200</td></tr>
+        <tr><td>July</td><td>$5,000</td><td>$3,100</td></tr>
+        <tr><td>August</td><td>$5,200</td><td>$3,100</td></tr>
+    </table>
+</main>
+<a href="{% url 'dashboard' %}" class="back-btn">⬅ Back to Dashboard</a>
+
+<footer><p>Finance Manager © 2025</p></footer>
+
+<script>
+new Chart(document.getElementById('trendsChart'), {
+    type: 'line',
+    data: {
+        labels: ['June', 'July', 'August'],
+        datasets: [
+            { label: 'Income', data: [4800, 5000, 5200], borderColor: '#00BFA6', fill: false },
+            { label: 'Expenses', data: [3200, 3100, 3100], borderColor: '#FF6384', fill: false }
+        ]
+    },
+    options: {
+        plugins: { legend: { labels: { color: '#E0E0E0' } } },
+        scales: { x: { ticks: { color: '#E0E0E0' } }, y: { ticks: { color: '#E0E0E0' } } }
+    }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Expense Alerts - Finance Manager</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'finance/styles.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .alerts-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin: 1rem auto;
+            max-width: 800px;
+        }
+        .card {
+            background: #1e1e1e;
+            padding: 1rem;
+            border-radius: 12px;
+            box-shadow: 0px 4px 8px rgba(0,0,0,0.3);
+        }
+        .card h2 {
+            margin-bottom: .5rem;
+            color: #00bfa6;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        li {
+            padding: .5rem 0;
+            border-bottom: 1px solid #333;
+            color: #e0e0e0;
+        }
+        @media (max-width: 600px) {
+            .alerts-container {
+                padding: 0 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<header><h1>Expense Alerts</h1></header>
+{% include 'finance/menu.html' %}
+
+<main class="alerts-container">
+    <div class="card">
+        <h2>Alerts</h2>
+        <ul>
+            {% for alert in alerts %}
+                <li>
+                    {% if alert.level == "warning" %} ⚠️ {% elif alert.level == "info" %} ℹ️ {% else %} ✅ {% endif %}
+                    {{ alert.message }}
+                </li>
+            {% empty %}
+                <li>No alerts at the moment ✅</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div class="card chart-placeholder">
+        <canvas id="alertsChart"></canvas>
+    </div>
+</main>
+
+<a href="{% url 'dashboard' %}" class="back-btn">⬅ Back to Dashboard</a>
+<footer><p>Finance Manager © 2025</p></footer>
+
+<script>
+new Chart(document.getElementById('alertsChart'), {
+    type: 'bar',
+    data: {
+        labels: {{ categories|safe }},
+        datasets: [{
+            label: 'Alerts Count',
+            data: {{ counts|safe }},
+            backgroundColor: ['#FF6384', '#36A2EB', '#00BFA6', '#FFCE56']
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { labels: { color: '#E0E0E0' } } },
+        scales: { 
+            x: { ticks: { color: '#E0E0E0' } }, 
+            y: { ticks: { color: '#E0E0E0' } } 
+        }
+    }
+});
+</script>
+</body>
+</html>
