@@ -1,2 +1,27 @@
-"db.sqlite3" 
-"testing/db.sqlite3" 
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# SQLite database
+db.sqlite3
+*/db.sqlite3
+
+# Django stuff
+staticfiles/
+media/
+
+# IDE / Editor settings
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
