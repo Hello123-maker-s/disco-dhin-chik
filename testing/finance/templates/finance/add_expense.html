@@ -14,15 +14,15 @@
 {% include 'finance/sidebar.html' %}
 
 <!-- Django Messages -->
-    {% if messages %}
-    <div id="popup-messages">
-        {% for message in messages %}
-        <div class="popup-message {{ message.tags }}">
-            {{ message }}
-        </div>
-        {% endfor %}
+{% if messages %}
+<div id="popup-messages">
+    {% for message in messages %}
+    <div class="popup-message {{ message.tags }}">
+        {{ message }}
     </div>
-    {% endif %}
+    {% endfor %}
+</div>
+{% endif %}
 
 
 <main style="flex: 1;">
@@ -31,15 +31,30 @@
     <!-- Add Expense Form -->
     <form method="POST" style="margin-bottom:20px;">
         {% csrf_token %}
-        {{ form.as_p }}
+        
+        <!-- Render all fields except category -->
+        {% for field in form %}
+            {% if field.name != 'category' %}
+                <p>{{ field.label_tag }} {{ field }}</p>
+            {% endif %}
+        {% endfor %}
+        
+        <!-- Category field with Auto-predict as first option -->
+        <p>
+            <label for="id_category">Category:</label>
+            {{ form.category }}
+        </p>
+
         <button type="submit">Add Expense</button>
     </form>
-    <h2 style="text-align: center;">Already have a csv of Expenses to add? Upload it here ⬇️</h2>
+
+    <!-- CSV Upload -->
+    <h2 style="text-align: center;">Already have a CSV of Expenses to add? Upload it here ⬇️</h2>
     <form method="POST" enctype="multipart/form-data" action="{% url 'upload_expense_csv' %}" style="margin-bottom:20px; align-items: center;">
         {% csrf_token %}
-            <label for="csv_file">Upload Expense CSV (MAX limit: 1MB)</label>
-            <input type="file" name="csv_file" accept=".csv" required>
-            <button type="submit">Upload</button>
+        <label for="csv_file">Upload Expense CSV (MAX limit: 1MB)</label>
+        <input type="file" name="csv_file" accept=".csv" required>
+        <button type="submit">Upload</button>
     </form>
 
     <!-- Expense Chart -->

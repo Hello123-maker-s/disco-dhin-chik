@@ -5,6 +5,7 @@ from django.db import models
 # Create your models here.
 class Expense(models.Model):
     CATEGORY_CHOICES = [
+        ('Auto-predict', 'Auto-predict'),
         ('Housing & Utilities', 'Housing & Utilities'),
         ('Transportation', 'Transportation'),
         ('Food & Dining', 'Food & Dining'),

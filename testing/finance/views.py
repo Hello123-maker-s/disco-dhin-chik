@@ -1,19 +1,37 @@
 from decimal import ROUND_HALF_UP, Decimal
 from urllib import request
-from django.shortcuts import render, redirect
-from .models import Expense, Income, RecurringIncome, RecurringExpense
+import csv
+import datetime
+import calendar
+from unicodedata import category
+
+from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
-from django.db.models import Sum, Q
+from django.db.models import Sum, Count, Q
+from django.db.models.functions import TruncMonth, ExtractWeek, ExtractMonth
 from django.core.paginator import Paginator
 from django.contrib import messages
-from django.db.models.functions import TruncMonth, ExtractWeek, ExtractMonth
-from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
-from .utils import get_next_due_date, normalize_headers, normalize_date, clean_value, normalize_expense_category, normalize_income_category
-from .forms import IncomeForm, ExpenseForm, RecurringIncomeForm, RecurringExpenseForm
-import csv
+
+from .models import (
+    Expense, Income, RecurringIncome, RecurringExpense, 
+    Category
+)
+from .forms import (
+    IncomeForm, ExpenseForm, RecurringIncomeForm, RecurringExpenseForm,
+    CategoryForm
+)
+from .utils import (
+    get_next_due_date, normalize_headers, normalize_date, 
+    clean_value, normalize_expense_category, normalize_income_category
+)
+
+from ml.classifier import predict_category
+from ml.forecasting import get_user_expense_forecast
 from savings.utils import auto_allocate_savings
+
+
 
 # Create your views here.
 @login_required
@@ -24,7 +42,18 @@ def add_expense(request):
             expense = form.save(commit=False)
             expense.user = request.user
 
-            # Calculate totals
+            # ------------------ Auto ML Category Prediction ------------------ #
+            if expense.category == 'Auto-predict' and expense.name:
+                predicted_category = predict_category([expense.name])[0]  # returns a list
+                # Validate predicted category against CATEGORY_CHOICES (excluding Auto-predict)
+                valid_categories = [choice[0] for choice in Expense.CATEGORY_CHOICES if choice[0] != 'Auto-predict']
+                if predicted_category in valid_categories:
+                    expense.category = predicted_category
+                else:
+                    expense.category = 'Miscellaneous'
+                    messages.warning(request, f"Predicted category '{predicted_category}' is invalid. Using Miscellaneous.")
+
+            # ------------------ Totals Calculation ------------------ #
             total_income = Income.objects.filter(user=request.user).aggregate(total=Sum('amount'))['total'] or Decimal('0')
             total_expense = Expense.objects.filter(user=request.user).aggregate(total=Sum('amount'))['total'] or Decimal('0')
 
@@ -36,16 +65,18 @@ def add_expense(request):
                 auto_allocate_savings(request.user)
                 messages.success(request, "Expense added successfully!")
                 return redirect('add_expense')
+
     else:
         form = ExpenseForm()
 
-    categories = [choice[0] for choice in Expense.CATEGORY_CHOICES]
-    chart_data=[]
+    # ------------------ Chart Data ------------------ #
+    categories = [choice[0] for choice in Expense.CATEGORY_CHOICES if choice[0] != 'Auto-predict']
+    chart_data = []
     for cat in categories:
         total = Expense.objects.filter(category=cat, user=request.user).aggregate(Sum('amount'))['amount__sum'] or 0
         chart_data.append(float(total))
 
-    context={
+    context = {
         'form': form,
         'categories': categories,
         'chart_data': chart_data,
@@ -180,10 +211,14 @@ def upload_expense_csv(request):
     if request.method == "POST":
         csv_file = request.FILES.get("csv_file")
         
-        # File size limit (1MB = 1,048,576 bytes)
+        if not csv_file:
+            messages.error(request, "No file uploaded!")
+            return redirect("add_expense")
+        
+        # File size limit (1MB)
         if csv_file.size > 1048576:
             messages.error(request, "File too large! Please upload a CSV under 1 MB.")
-            return redirect("add_income")
+            return redirect("add_expense")
 
         if not csv_file.name.endswith('.csv'):
             messages.error(request, "Only CSV files are allowed!")
@@ -193,20 +228,47 @@ def upload_expense_csv(request):
             file_data = csv_file.read().decode("utf-8").splitlines()
             reader = csv.DictReader(file_data)
 
-            field_map = normalize_headers([h.strip().lower() for h in reader.fieldnames])
+            # Prepare valid categories (excluding Auto-predict)
+            valid_categories = [choice[0] for choice in Expense.CATEGORY_CHOICES if choice[0] != 'Auto-predict']
 
             for row in reader:
-                date_str = normalize_date(row.get(field_map.get("date")))
-                name = clean_value(row.get("name"), default="Unknown Expense")
-                amount = clean_value(row.get(field_map.get("amount")), default=0, cast_type=Decimal)
-                if amount:
-                    amount = amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                raw_category = clean_value(row.get("category"), default="Miscellaneous")
-                category = normalize_expense_category(raw_category)  # ✅ normalize here
+                # ------------------ Column Mapping / Normalization ------------------ #
+                date_str = normalize_date(
+                    row.get("Date") or row.get("Transaction Date") or row.get("Posted Date")
+                )
+                name = clean_value(
+                    row.get("Description") or row.get("Transaction Details") or row.get("Memo"),
+                    default="Unknown Expense"
+                )
 
-                if not date_str or not name or amount == 0:
+                # Amount normalization: handle Debit/Credit or single Amount column
+                amount = None
+                if row.get("Debit"):
+                    amount = clean_value(row.get("Debit"), default=0, cast_type=Decimal)
+                elif row.get("Credit"):
+                    amount = -clean_value(row.get("Credit"), default=0, cast_type=Decimal)
+                elif row.get("Amount"):
+                    amount = clean_value(row.get("Amount"), default=0, cast_type=Decimal)
+
+                if amount is None or amount == 0:
+                    continue
+                amount = amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+                if not date_str or not name:
                     continue
 
+                # ------------------ ML Category Prediction ------------------ #
+                predicted_category = predict_category([name])[0]
+                category = predicted_category if predicted_category in valid_categories else "Miscellaneous"
+
+                # ------------------ Income Check ------------------ #
+                total_income = Income.objects.filter(user=request.user).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+                total_expense = Expense.objects.filter(user=request.user).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+                if (total_expense + amount) > total_income:
+                    messages.warning(request, f"Skipping '{name}' - exceeds total income!")
+                    continue
+
+                # ------------------ Save Expense ------------------ #
                 try:
                     Expense.objects.create(
                         date=date_str,
@@ -216,27 +278,38 @@ def upload_expense_csv(request):
                         user=request.user
                     )
                 except Exception as e:
-                    messages.error(request, f"Error saving row: {str(e)}")
+                    messages.error(request, f"Error saving '{name}': {str(e)}")
                     continue
 
+            # ------------------ Post Processing ------------------ #
+            auto_allocate_savings(request.user)
             messages.success(request, "CSV uploaded successfully!")
+
         except Exception as e:
             messages.error(request, f"Error processing CSV: {str(e)}")
             return redirect("add_expense")
+
         return redirect("expense_log")
 
     return redirect("add_expense")
 
 @login_required
 def expense_log(request):
+    # Process recurring transactions first
     process_recurring_transactions(request.user)
-    expenses = Expense.objects.filter(user=request.user).order_by('-date')
-    categories = [choice[0] for choice in Expense.CATEGORY_CHOICES]
 
+    # Get all expenses for the user, most recent first
+    expenses = Expense.objects.filter(user=request.user).order_by('-date')
+
+    # Exclude 'Auto-predict' from categories for charts/filters
+    categories = [choice[0] for choice in Expense.CATEGORY_CHOICES if choice[0] != 'Auto-predict']
+
+    # Labels and data for chart
     labels = [expense.date.strftime('%Y-%m-%d') for expense in expenses]
     data = [float(expense.amount) for expense in expenses]
 
-    paginator = Paginator(expenses, 20)  # Show 20 expenses per page
+    # Pagination: 20 expenses per page
+    paginator = Paginator(expenses, 20)
     page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
 
@@ -250,13 +323,19 @@ def expense_log(request):
         start_page = max(end_page - window_size + 1, 1)
     page_range = range(start_page, end_page + 1)
 
-    context={
+    # ---- Forecast ----
+    forecast = get_user_expense_forecast(request.user)
+
+    context = {
         'expenses': page_obj,
         'labels': labels,
         'data': data,
         'categories': categories,
         'page_obj': page_obj,
         'page_range': page_range,
+        'current_month_expected': f"₹{forecast['this_month_expected']}",
+        'next_month_expected': f"₹{forecast['next_month_expected']}",
+        'spent_so_far': f"₹{forecast['spent_so_far']}",
     }
     return render(request, 'finance/expense_log.html', context)
 
