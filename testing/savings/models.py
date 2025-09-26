@@ -2,6 +2,19 @@ from django.db import models
 from django.utils import timezone
 from django.conf import settings
 from django.contrib.auth.models import User
+from django.db import models
+from django.contrib.auth.models import User
+
+class SurplusTracker(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    last_surplus = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    
+    # Add these two fields to track monthly allocation
+    last_applied_month = models.IntegerField(null=True, blank=True)
+    last_applied_year = models.IntegerField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.user.username} Surplus Tracker"
 
 
 class SavingsGoal(models.Model):
@@ -69,10 +82,7 @@ class AutoSavingsRule(models.Model):
     def __str__(self):
         return f"{self.percentage}% → {self.goal.name} ({self.frequency})"
 
-class SurplusTracker(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="surplus_tracker")
-    last_surplus = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    updated_at = models.DateTimeField(auto_now=True)
+
 
 
 

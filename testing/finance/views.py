@@ -1,14 +1,9 @@
 from decimal import ROUND_HALF_UP, Decimal
-from urllib import request
 import csv
-import datetime
-import calendar
-from unicodedata import category
-
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
-from django.db.models import Sum, Count, Q
-from django.db.models.functions import TruncMonth, ExtractWeek, ExtractMonth
+from django.db.models import Sum
+from django.db.models.functions import ExtractWeek, ExtractMonth
 from django.core.paginator import Paginator
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -16,15 +11,13 @@ from django.views.decorators.http import require_POST
 
 from .models import (
     Expense, Income, RecurringIncome, RecurringExpense, 
-    Category
 )
 from .forms import (
     IncomeForm, ExpenseForm, RecurringIncomeForm, RecurringExpenseForm,
-    CategoryForm
 )
 from .utils import (
     get_next_due_date, normalize_headers, normalize_date, 
-    clean_value, normalize_expense_category, normalize_income_category
+    clean_value, normalize_income_category
 )
 
 from ml.classifier import predict_category
