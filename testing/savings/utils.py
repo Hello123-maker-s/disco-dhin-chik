@@ -1,149 +1,162 @@
 from datetime import date
+from decimal import Decimal
+from django.db.models import Sum, F, Case, When
 from dateutil.relativedelta import relativedelta
-from django.db import models
-from django.db.models import Sum, F
+
 from finance.models import Income, Expense
 from .models import SavingsGoal, SavingsDeposit, AutoSavingsRule, SurplusTracker
 
-PRIORITY_ORDER = {"High": 0, "Medium": 1, "Low": 2}
 
-
-def calculate_surplus(user):
-    """
-    Calculates current surplus: income - expenses for the last month
-    """
-    today = date.today()
-    first_day_last_month = (today.replace(day=1) - relativedelta(months=1))
-    last_day_last_month = today.replace(day=1) - relativedelta(days=1)
-
-    total_income = Income.objects.filter(
-        user=user, date__range=(first_day_last_month, last_day_last_month)
-    ).aggregate(total=Sum("amount"))["total"] or 0
-
-    total_expense = Expense.objects.filter(
-        user=user, date__range=(first_day_last_month, last_day_last_month)
-    ).aggregate(total=Sum("amount"))["total"] or 0
-
-    return max(total_income - total_expense, 0)
-
-
+# -------------------------
+# Auto-Savings Rules
+# -------------------------
 def apply_auto_savings_rules(user):
     """
-    Applies user-defined auto-savings rules first.
-    Returns total amount allocated by rules.
+    Apply auto-savings rules for the current month.
     """
     today = date.today()
-    incomes = Income.objects.filter(user=user, date__year=today.year, date__month=today.month)
-    total_income = incomes.aggregate(total=Sum("amount"))["total"] or 0
+    current_month_income = Income.objects.filter(user=user, date__year=today.year, date__month=today.month).aggregate(Sum("amount"))["amount__sum"] or 0
+    if current_month_income <= 0:
+        return Decimal(0)
 
-    if not total_income:
-        return 0
-
-    total_allocated = 0
-
-    rules = AutoSavingsRule.objects.filter(goal__user=user).select_related("goal")
-    for rule in rules:
-        should_apply = False
-        if not rule.last_applied:
-            should_apply = True
-        else:
-            delta = relativedelta(today, rule.last_applied)
-            if rule.frequency == "monthly" and delta.months >= 1:
-                should_apply = True
-            elif rule.frequency == "quarterly" and delta.months >= 3:
-                should_apply = True
-            elif rule.frequency == "biannually" and delta.months >= 6:
-                should_apply = True
-            elif rule.frequency == "annually" and delta.years >= 1:
-                should_apply = True
-
-        if should_apply:
-            allocation = (total_income * rule.percentage) / 100
-            if allocation > 0:
-                SavingsDeposit.objects.create(goal=rule.goal, amount=allocation)
-                total_allocated += allocation
-                rule.last_applied = today
-                rule.save()
-
-    return total_allocated
-
-
-def auto_allocate_savings(user):
-    """
-    Allocates surplus to active savings goals based on priority.
-    Surplus is split equally among same-priority goals and allocated
-    sequentially from High → Medium → Low until exhausted.
-    """
-    today = date.today()
-    tracker, _ = SurplusTracker.objects.get_or_create(user=user)
-
-    # Ensure allocation only once per month
-    if tracker.last_applied_month == today.month and tracker.last_applied_year == today.year:
-        return tracker.last_surplus or 0
-
-    # Step 1 → Apply auto-savings rules
-    rule_allocations = apply_auto_savings_rules(user)
-
-    # Step 2 → Calculate surplus after rules
-    surplus = calculate_surplus(user) - rule_allocations
-    if surplus <= 0:
-        tracker.last_surplus = surplus
-        tracker.last_applied_month = today.month
-        tracker.last_applied_year = today.year
-        tracker.save()
-        return surplus
-
-    # Step 3 → Fetch active goals, sorted by priority
-    active_goals = list(
-        SavingsGoal.objects.filter(user=user)
-        .exclude(current_amount__gte=F("target_amount"))
+    # Pick highest priority rule
+    rule = (
+        AutoSavingsRule.objects.filter(goal__user=user)
+        .select_related("goal")
         .order_by(
-            models.Case(
-                *[models.When(priority=p, then=v) for p, v in PRIORITY_ORDER.items()],
+            Case(
+                When(goal__priority="High", then=0),
+                When(goal__priority="Medium", then=1),
+                When(goal__priority="Low", then=2),
                 default=3
             ),
-            "deadline",
-            "id"
+            "goal__deadline", "goal__id"
         )
+        .first()
     )
 
-    # Step 4 → Allocate surplus by priority
-    for priority in ["High", "Medium", "Low"]:
-        priority_goals = [g for g in active_goals if g.priority == priority]
-        if not priority_goals:
-            continue
+    if not rule:
+        return Decimal(0)
 
-        # Calculate total needed for all goals in this priority
-        total_needed = sum(g.remaining_amount() for g in priority_goals)
-        if total_needed <= 0:
-            continue
+    # Check frequency
+    apply_rule = False
+    if not rule.last_applied:
+        apply_rule = True
+    else:
+        delta = relativedelta(today, rule.last_applied)
+        if (rule.frequency == "monthly" and delta.months >= 1) or \
+           (rule.frequency == "quarterly" and delta.months >= 3) or \
+           (rule.frequency == "biannually" and delta.months >= 6) or \
+           (rule.frequency == "annually" and delta.years >= 1):
+            apply_rule = True
 
-        # Surplus to allocate for this priority
-        allocation_amount = min(surplus, total_needed)
+    if apply_rule:
+        allocation = (Decimal(current_month_income) * rule.percentage) / Decimal(100)
+        if allocation > 0:
+            SavingsDeposit.objects.create(goal=rule.goal, amount=allocation)
+            rule.last_applied = today
+            rule.save()
+            return allocation
 
-        # Split equally among goals
-        num_goals = len(priority_goals)
-        while allocation_amount > 0 and num_goals > 0:
-            per_goal_allocation = allocation_amount / num_goals
-            for goal in priority_goals[:]:  # Copy to allow removal
-                needed = goal.remaining_amount()
-                deposit_amount = min(per_goal_allocation, needed)
-                SavingsDeposit.objects.create(goal=goal, amount=deposit_amount)
-                allocation_amount -= deposit_amount
+    return Decimal(0)
 
-                # Remove fully funded goals
-                if goal.current_amount + deposit_amount >= goal.target_amount:
-                    priority_goals.remove(goal)
 
-            num_goals = len(priority_goals)
-        surplus -= min(surplus, total_needed)
-        if surplus <= 0:
-            break
+# -------------------------
+# Monthly Surplus
+# -------------------------
+def calculate_monthly_surplus(user, year, month):
+    total_income = Income.objects.filter(user=user, date__year=year, date__month=month).aggregate(Sum("amount"))["amount__sum"] or 0
+    total_expense = Expense.objects.filter(user=user, date__year=year, date__month=month).aggregate(Sum("amount"))["total"] or 0
+    return max(Decimal(total_income) - Decimal(total_expense), Decimal(0))
 
-    # Step 5 → Update tracker
-    tracker.last_surplus = surplus
-    tracker.last_applied_month = today.month
-    tracker.last_applied_year = today.year
+
+def calculate_current_month_balance(user):
+    today = date.today()
+    total_income = Income.objects.filter(user=user, date__year=today.year, date__month=today.month).aggregate(Sum("amount"))["amount__sum"] or 0
+    total_expense = Expense.objects.filter(user=user, date__year=today.year, date__month=today.month).aggregate(Sum("amount"))["amount__sum"] or 0
+    return max(Decimal(total_income) - Decimal(total_expense), Decimal(0))
+
+
+# -------------------------
+# Auto Allocate Surplus
+# -------------------------
+def auto_allocate_savings(user):
+    """
+    Handles accumulated balance and goal allocation.
+    """
+    tracker, _ = SurplusTracker.objects.get_or_create(user=user)
+    today = date.today()
+    first_day_current_month = date(today.year, today.month, 1)
+
+    # 1️⃣ Calculate total surplus of previous months (excluding current month)
+    total_income_prev = Income.objects.filter(user=user, date__lt=first_day_current_month).aggregate(Sum("amount"))["amount__sum"] or 0
+    total_expense_prev = Expense.objects.filter(user=user, date__lt=first_day_current_month).aggregate(Sum("amount"))["amount__sum"] or 0
+    previous_surplus = Decimal(total_income_prev) - Decimal(total_expense_prev)
+
+    # 2️⃣ Total deposits already made
+    total_deposits = SavingsDeposit.objects.filter(goal__user=user).aggregate(Sum("amount"))["amount__sum"] or 0
+
+    # 3️⃣ Update accumulated balance in tracker
+    tracker.last_surplus = max(previous_surplus - Decimal(total_deposits), Decimal(0))
     tracker.save()
 
-    return surplus
+    # 4️⃣ Apply accumulated balance to goals by priority (High → Medium → Low)
+    surplus_to_allocate = tracker.last_surplus
+    if surplus_to_allocate > 0:
+        goals = SavingsGoal.objects.filter(user=user, current_amount__lt=F("target_amount")).order_by(
+            Case(
+                When(priority="High", then=0),
+                When(priority="Medium", then=1),
+                When(priority="Low", then=2),
+                default=3
+            ),
+            "deadline", "id"
+        )
+
+        while surplus_to_allocate > 0 and goals.exists():
+            first_priority = goals.first().priority
+            same_priority_goals = goals.filter(priority=first_priority)
+            share = surplus_to_allocate / same_priority_goals.count()
+
+            for goal in same_priority_goals:
+                needed = goal.remaining_amount()
+                allocation = min(share, needed)
+                if allocation > 0:
+                    SavingsDeposit.objects.create(goal=goal, amount=allocation)
+                    surplus_to_allocate -= allocation
+
+            # Refresh goal list
+            goals = SavingsGoal.objects.filter(user=user, current_amount__lt=F("target_amount")).order_by(
+                Case(
+                    When(priority="High", then=0),
+                    When(priority="Medium", then=1),
+                    When(priority="Low", then=2),
+                    default=3
+                ),
+                "deadline", "id"
+            )
+
+    # 5️⃣ Update leftover accumulated balance
+    tracker.last_surplus = surplus_to_allocate
+    tracker.save()
+
+    return {
+        "accumulated_balance": tracker.last_surplus,
+        "current_balance": calculate_current_month_balance(user)
+    }
+
+# -------------------------
+# Goal Deletion / Refund
+# -------------------------
+def delete_goals_with_refund(user, goals_queryset):
+    """
+    Deletes goals and refunds their deposited amount to accumulated balance.
+    """
+    tracker, _ = SurplusTracker.objects.get_or_create(user=user)
+    refund = goals_queryset.aggregate(total=Sum("current_amount"))["total"] or 0
+    tracker.last_surplus += Decimal(refund)
+    tracker.save()
+    count = goals_queryset.count()
+    goals_queryset.delete()
+    return count, refund
+
