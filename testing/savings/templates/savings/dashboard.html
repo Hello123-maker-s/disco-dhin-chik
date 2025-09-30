@@ -27,7 +27,7 @@
     <div style="display: flex; min-height: calc(100vh - 100px);">
         {% include 'savings/sidebar.html' %}
         <main style="flex: 1;">
-            
+
             <!-- Overall Goals Summary -->
             <div class="card" style="margin-bottom:20px; padding:20px;">
                 <h2 style="text-align:center;">📊 Overall Goals Summary</h2>
@@ -36,48 +36,32 @@
                         <h3>Total Goals</h3>
                         <p style="font-size:1.5em;">{{ total_goals }}</p>
                     </div>
-
                     <div style="text-align:center; margin:10px;">
                         <h3>Total Target</h3>
                         <p style="font-size:1.5em; color:#c97610;">{{ total_target }}</p>
                     </div>
-
                     <div style="text-align:center; margin:10px;">
                         <h3>Total Current</h3>
                         <p style="font-size:1.5em; color:#00BFA6;">{{ total_current }}</p>
                     </div>
-
                     <div style="margin:10px; text-align:center;">
                         <h3>💰 Accumulated Balance</h3>
                         {% if accumulated_balance > 0 %}
-                            <p style="font-size:1.5em; font-weight:bold; color:green;">
-                                +{{ accumulated_balance|floatformat:2 }}
-                            </p>
+                            <p style="font-size:1.5em; font-weight:bold; color:green;">+{{ accumulated_balance|floatformat:2 }}</p>
                         {% elif accumulated_balance < 0 %}
-                            <p style="font-size:1.5em; font-weight:bold; color:red;">
-                                {{ accumulated_balance|floatformat:2 }}
-                            </p>
+                            <p style="font-size:1.5em; font-weight:bold; color:red;">{{ accumulated_balance|floatformat:2 }}</p>
                         {% else %}
-                            <p style="font-size:1.5em; font-weight:bold; color:gray;">
-                                {{ accumulated_balance|floatformat:2 }}
-                            </p>
+                            <p style="font-size:1.5em; font-weight:bold; color:gray;">{{ accumulated_balance|floatformat:2 }}</p>
                         {% endif %}
                     </div>
-
                     <div style="margin:10px; text-align:center;">
                         <h3>📅 Current Month Balance</h3>
                         {% if current_balance > 0 %}
-                            <p style="font-size:1.5em; font-weight:bold; color:green;">
-                                +{{ current_balance|floatformat:2 }}
-                            </p>
+                            <p style="font-size:1.5em; font-weight:bold; color:green;">+{{ current_balance|floatformat:2 }}</p>
                         {% elif current_balance < 0 %}
-                            <p style="font-size:1.5em; font-weight:bold; color:red;">
-                                {{ current_balance|floatformat:2 }}
-                            </p>
+                            <p style="font-size:1.5em; font-weight:bold; color:red;">{{ current_balance|floatformat:2 }}</p>
                         {% else %}
-                            <p style="font-size:1.5em; font-weight:bold; color:gray;">
-                                {{ current_balance|floatformat:2 }}
-                            </p>
+                            <p style="font-size:1.5em; font-weight:bold; color:gray;">{{ current_balance|floatformat:2 }}</p>
                         {% endif %}
                     </div>
                 </div>
@@ -127,8 +111,10 @@
                     <th>Current</th>
                     <th>Progress</th>
                     <th>Deadline</th>
+                    <th>Probability</th>
                     <th>Actions</th>
                 </tr>
+
                 {% for goal in goals %}
                 <tr>
                     <td style="text-align:center; padding:8px;">
@@ -149,19 +135,44 @@
                         </div>
                     </td>
                     <td>{{ goal.deadline|default:"N/A" }}</td>
+
+                    <!-- Probability column -->
+                    <td style="text-align:center;">
+                        {% if goal.probability == 100 %}
+                            <span>--</span>
+                        {% else %}
+                            <div class="probability-meter" style="background:#e0e0e0; border-radius:10px; overflow:hidden; height:20px; width:100px; margin:auto;">
+                                <div style="height:100%; width:{{ goal.probability }}%;
+                                            background:{% if goal.probability < 30 %}#ff4d4d
+                                                    {% elif goal.probability < 70 %}#ffcc00
+                                                    {% else %}#00cc66{% endif %};
+                                            text-align:center; color:white; font-weight:bold;">
+                                    {{ goal.probability }}%
+                                </div>
+                            </div>
+                            <small style="display:block; margin-top:2px;">
+                                {% if goal.suggested_deadline == '>10 years' %}
+                                    Suggested: >10 yrs
+                                {% elif goal.suggested_deadline != '--' %}
+                                    Suggested: {{ goal.suggested_deadline|date:"M Y" }}
+                                {% else %}
+                                    --
+                                {% endif %}
+                            </small>
+                        {% endif %}
+                    </td>
+
                     <td class="action-buttons">
                         <a href="{% url 'edit_goal' goal.id %}"><button class="edit-button">Edit</button></a>
-
-                        <!-- Delete Goal (refund) -->
                         <form method="post" action="{% url 'delete_goal' goal.id %}" style="display:inline;" 
-                              onsubmit="return confirm('Delete {{ goal.name }} (refund balances)?');">
+                            onsubmit="return confirm('Delete {{ goal.name }} (refund balances)?');">
                             {% csrf_token %}
                             <button type="submit" class="delete-button">Delete Goal</button>
                         </form>
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="7">No savings goals yet.</td></tr>
+                <tr><td colspan="8">No savings goals yet.</td></tr>
                 {% endfor %}
             </table>
 

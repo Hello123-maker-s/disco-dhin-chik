@@ -4,7 +4,7 @@ from django.db.models import Sum, F, Case, When
 from dateutil.relativedelta import relativedelta
 
 from finance.models import Income, Expense
-from .models import SavingsGoal, SavingsDeposit, AutoSavingsRule, SurplusTracker
+from .models import SavingsGoal, AutoSavingsRule
 
 
 # -------------------------
@@ -15,7 +15,9 @@ def apply_auto_savings_rules(user):
     Apply auto-savings rules for the current month.
     """
     today = date.today()
-    current_month_income = Income.objects.filter(user=user, date__year=today.year, date__month=today.month).aggregate(Sum("amount"))["amount__sum"] or 0
+    current_month_income = Income.objects.filter(
+        user=user, date__year=today.year, date__month=today.month
+    ).aggregate(Sum("amount"))["amount__sum"] or 0
     if current_month_income <= 0:
         return Decimal(0)
 
@@ -53,6 +55,7 @@ def apply_auto_savings_rules(user):
     if apply_rule:
         allocation = (Decimal(current_month_income) * rule.percentage) / Decimal(100)
         if allocation > 0:
+            from .models import SavingsDeposit  # import locally to avoid circular issues
             SavingsDeposit.objects.create(goal=rule.goal, amount=allocation)
             rule.last_applied = today
             rule.save()
@@ -65,15 +68,27 @@ def apply_auto_savings_rules(user):
 # Monthly Surplus
 # -------------------------
 def calculate_monthly_surplus(user, year, month):
-    total_income = Income.objects.filter(user=user, date__year=year, date__month=month).aggregate(Sum("amount"))["amount__sum"] or 0
-    total_expense = Expense.objects.filter(user=user, date__year=year, date__month=month).aggregate(Sum("amount"))["total"] or 0
+    total_income = Income.objects.filter(
+        user=user, date__year=year, date__month=month
+    ).aggregate(Sum("amount"))["amount__sum"] or 0
+
+    total_expense = Expense.objects.filter(
+        user=user, date__year=year, date__month=month
+    ).aggregate(Sum("amount"))["amount__sum"] or 0
+
     return max(Decimal(total_income) - Decimal(total_expense), Decimal(0))
 
 
 def calculate_current_month_balance(user):
     today = date.today()
-    total_income = Income.objects.filter(user=user, date__year=today.year, date__month=today.month).aggregate(Sum("amount"))["amount__sum"] or 0
-    total_expense = Expense.objects.filter(user=user, date__year=today.year, date__month=today.month).aggregate(Sum("amount"))["amount__sum"] or 0
+    total_income = Income.objects.filter(
+        user=user, date__year=today.year, date__month=today.month
+    ).aggregate(Sum("amount"))["amount__sum"] or 0
+
+    total_expense = Expense.objects.filter(
+        user=user, date__year=today.year, date__month=today.month
+    ).aggregate(Sum("amount"))["amount__sum"] or 0
+
     return max(Decimal(total_income) - Decimal(total_expense), Decimal(0))
 
 
@@ -84,6 +99,8 @@ def auto_allocate_savings(user):
     """
     Handles accumulated balance and goal allocation.
     """
+    from .models import SurplusTracker, SavingsDeposit
+
     tracker, _ = SurplusTracker.objects.get_or_create(user=user)
     today = date.today()
     first_day_current_month = date(today.year, today.month, 1)
@@ -145,6 +162,7 @@ def auto_allocate_savings(user):
         "current_balance": calculate_current_month_balance(user)
     }
 
+
 # -------------------------
 # Goal Deletion / Refund
 # -------------------------
@@ -152,6 +170,8 @@ def delete_goals_with_refund(user, goals_queryset):
     """
     Deletes goals and refunds their deposited amount to accumulated balance.
     """
+    from .models import SurplusTracker
+
     tracker, _ = SurplusTracker.objects.get_or_create(user=user)
     refund = goals_queryset.aggregate(total=Sum("current_amount"))["total"] or 0
     tracker.last_surplus += Decimal(refund)
@@ -159,4 +179,3 @@ def delete_goals_with_refund(user, goals_queryset):
     count = goals_queryset.count()
     goals_queryset.delete()
     return count, refund
-

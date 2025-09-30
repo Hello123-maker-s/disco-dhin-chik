@@ -2,43 +2,51 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-
+from datetime import date
 
 from .models import SavingsGoal, SavingsDeposit, AutoSavingsRule
 from .forms import SavingsGoalForm, SavingsDepositForm, AutoSavingsRuleForm
 from .utils import auto_allocate_savings, delete_goals_with_refund
+from ml.probability import predict_goal_probability,predict_goal_probability # updated import
 
 
-# -------------------------
-# Dashboard
-# -------------------------
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
+
+from .models import SavingsGoal
+from .utils import auto_allocate_savings
+from ml.probability import predict_goal_probability  # ML function
+
 @login_required
 def savings_dashboard(request):
     # Automatically update accumulated balance and allocate to goals
     balances = auto_allocate_savings(request.user)
 
+    # All goals for this user
     all_goals = SavingsGoal.objects.filter(user=request.user).order_by("deadline", "id")
     paginator = Paginator(all_goals, 10)
     page_obj = paginator.get_page(request.GET.get("page", 1))
 
+    # Overall stats
     total_goals = all_goals.count()
     total_target = sum(goal.target_amount for goal in all_goals)
     total_current = sum(goal.current_amount for goal in all_goals)
-
-    # Overall progress across all goals
     overall_progress = (total_current / total_target * 100) if total_target else 0
 
+    # Labels and progress for charts
     labels = [goal.name for goal in all_goals]
     progress = [float(goal.progress()) for goal in all_goals]
 
-    # Current month balance (income - expense this month)
+    # Current month balance and accumulated balance
     current_balance = balances["current_balance"]
-
-    # Accumulated balance (previous months) after allocation to goals
     accumulated_balance = balances["accumulated_balance"]
 
-    # Total deposited into goals from accumulated balance + deposits = total current
-    total_current_display = total_current
+    # Attach probability and suggested deadline to each goal on the current page
+    for goal in page_obj:
+        prob_data = predict_goal_probability(request.user, goal)  # pass both user and goal
+        goal.probability = prob_data.get("probability", 100)
+        goal.suggested_deadline = prob_data.get("suggested_deadline", "--")
 
     return render(request, "savings/dashboard.html", {
         "labels": labels,
@@ -47,10 +55,10 @@ def savings_dashboard(request):
         "page_obj": page_obj,
         "total_goals": total_goals,
         "total_target": total_target,
-        "total_current": total_current_display,
+        "total_current": total_current,
         "accumulated_balance": accumulated_balance,
         "current_balance": current_balance,
-        "overall_progress": overall_progress
+        "overall_progress": overall_progress,
     })
 
 
@@ -71,7 +79,11 @@ def goal_form(request, id=None):
             return redirect("savings_dashboard")
     else:
         form = SavingsGoalForm(instance=goal)
-    return render(request, "savings/goal_form.html", {"form": form, "goal": goal})
+
+    # Compute probability for current goal (real-time for form)
+    prob_data = predict_goal_probability(request.user, goal) if goal else {"probability": 100, "suggested_deadline": "--"}
+
+    return render(request, "savings/goal_form.html", {"form": form, "goal": goal, "goal_probability": prob_data})
 
 
 # -------------------------
