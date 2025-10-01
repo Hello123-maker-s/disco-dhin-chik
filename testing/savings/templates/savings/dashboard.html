@@ -104,77 +104,86 @@
 
             <!-- Goals Table -->
             <table>
-                <tr>
-                    <th style="padding:10px;"><input type="checkbox" id="select-all"></th>
-                    <th>Goal</th>
-                    <th>Target</th>
-                    <th>Current</th>
-                    <th>Progress</th>
-                    <th>Deadline</th>
-                    <th>Probability</th>
-                    <th>Actions</th>
-                </tr>
+                <thead>
+                    <tr>
+                        <th style="padding:10px;"><input type="checkbox" id="select-all"></th>
+                        <th>Goal</th>
+                        <th>Target</th>
+                        <th>Current</th>
+                        <th>Progress</th>
+                        <th>Deadline</th>
+                        <th>Probability</th>
+                        <th>Suggested</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for goal in goals %}
+                    <tr>
+                        <!-- Checkbox -->
+                        <td style="text-align:center; padding:8px;">
+                            <input type="checkbox" class="row-checkbox" data-goal-id="{{ goal.id }}">
+                        </td>
 
-                {% for goal in goals %}
-                <tr>
-                    <td style="text-align:center; padding:8px;">
-                        <input type="checkbox" class="row-checkbox" data-goal-id="{{ goal.id }}">
-                    </td>
-                    <td>{{ goal.name }}</td>
-                    <td>{{ goal.target_amount }}</td>
-                    <td>{{ goal.current_amount }}</td>
-                    <td>
-                        <div class="progress-container">
-                            <div class="progress-bar 
-                                {% if goal.progress < 30 %}progress-low
-                                {% elif goal.progress < 70 %}progress-medium
-                                {% else %}progress-high{% endif %}"
-                                style="width: {{ goal.progress }}%">
-                                {{ goal.progress }}%
-                            </div>
-                        </div>
-                    </td>
-                    <td>{{ goal.deadline|default:"N/A" }}</td>
+                        <!-- Goal name -->
+                        <td>{{ goal.name }}</td>
 
-                    <!-- Probability column -->
-                    <td style="text-align:center;">
-                        {% if goal.probability == 100 %}
-                            <span>--</span>
-                        {% else %}
-                            <div class="probability-meter" style="background:#e0e0e0; border-radius:10px; overflow:hidden; height:20px; width:100px; margin:auto;">
-                                <div style="height:100%; width:{{ goal.probability }}%;
-                                            background:{% if goal.probability < 30 %}#ff4d4d
-                                                    {% elif goal.probability < 70 %}#ffcc00
-                                                    {% else %}#00cc66{% endif %};
-                                            text-align:center; color:white; font-weight:bold;">
-                                    {{ goal.probability }}%
+                        <!-- Target + Current -->
+                        <td>{{ goal.target_amount }}</td>
+                        <td>{{ goal.current_amount }}</td>
+
+                        <!-- Progress bar -->
+                        <td>
+                            <div class="progress-container">
+                                <div class="progress-bar 
+                                    {% if goal.progress < 30 %}progress-low
+                                    {% elif goal.progress < 70 %}progress-medium
+                                    {% else %}progress-high{% endif %}"
+                                    style="width: {{ goal.progress }}%">
                                 </div>
                             </div>
-                            <small style="display:block; margin-top:2px;">
-                                {% if goal.suggested_deadline == '>10 years' %}
-                                    Suggested: >10 yrs
-                                {% elif goal.suggested_deadline != '--' %}
-                                    Suggested: {{ goal.suggested_deadline|date:"M Y" }}
-                                {% else %}
-                                    --
-                                {% endif %}
-                            </small>
-                        {% endif %}
-                    </td>
+                            <div style="text-align:center; font-weight:bold; margin-top:4px;">
+                                {{ goal.progress }}%
+                            </div>
+                        </td>
 
-                    <td class="action-buttons">
-                        <a href="{% url 'edit_goal' goal.id %}"><button class="edit-button">Edit</button></a>
-                        <form method="post" action="{% url 'delete_goal' goal.id %}" style="display:inline;" 
-                            onsubmit="return confirm('Delete {{ goal.name }} (refund balances)?');">
-                            {% csrf_token %}
-                            <button type="submit" class="delete-button">Delete Goal</button>
-                        </form>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="8">No savings goals yet.</td></tr>
-                {% endfor %}
+                        <!-- User-set Deadline -->
+                        <td>{{ goal.deadline|default:"N/A" }}</td>
+
+                        <!-- Probability -->
+                        <td style="text-align:center; font-weight:bold;">
+                            {{ goal.probability }}%
+                        </td>
+
+                        <!-- Suggested Deadline -->
+                        <td style="text-align:center;">
+                            {% if goal.suggested_deadline == '>10 years' %}
+                                >10 yrs
+                            {% elif goal.suggested_deadline != '--' %}
+                                {{ goal.suggested_deadline|date:"M Y" }}
+                            {% else %}
+                                --
+                            {% endif %}
+                        </td>
+
+                        <!-- Actions -->
+                        <td class="action-buttons">
+                            <a href="{% url 'edit_goal' goal.id %}">
+                                <button class="edit-button">Edit</button>
+                            </a>
+                            <form method="post" action="{% url 'delete_goal' goal.id %}" style="display:inline;" 
+                                onsubmit="return confirm('Delete {{ goal.name }} (refund balances)?');">
+                                {% csrf_token %}
+                                <button type="submit" class="delete-button">Delete Goal</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="9" style="text-align:center;">No savings goals yet.</td></tr>
+                    {% endfor %}
+                </tbody>
             </table>
+
 
             <!-- Pagination -->
             <div style="display:flex; justify-content:space-between; align-items:center; margin:20px 0; flex-wrap:nowrap; gap:15px;">

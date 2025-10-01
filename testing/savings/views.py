@@ -18,36 +18,48 @@ from .models import SavingsGoal
 from .utils import auto_allocate_savings
 from ml.probability import predict_goal_probability  # ML function
 
+
 @login_required
 def savings_dashboard(request):
-    # Automatically update accumulated balance and allocate to goals
+    # 1️⃣ Auto-update accumulated balance and allocate to goals
     balances = auto_allocate_savings(request.user)
 
-    # All goals for this user
+    # 2️⃣ Fetch all goals for this user
     all_goals = SavingsGoal.objects.filter(user=request.user).order_by("deadline", "id")
     paginator = Paginator(all_goals, 10)
     page_obj = paginator.get_page(request.GET.get("page", 1))
 
-    # Overall stats
+    # 3️⃣ Overall stats
     total_goals = all_goals.count()
     total_target = sum(goal.target_amount for goal in all_goals)
     total_current = sum(goal.current_amount for goal in all_goals)
     overall_progress = (total_current / total_target * 100) if total_target else 0
 
-    # Labels and progress for charts
+    # 4️⃣ Labels and progress for charts
     labels = [goal.name for goal in all_goals]
     progress = [float(goal.progress()) for goal in all_goals]
 
-    # Current month balance and accumulated balance
+    # 5️⃣ Current month balance and accumulated balance
     current_balance = balances["current_balance"]
     accumulated_balance = balances["accumulated_balance"]
 
-    # Attach probability and suggested deadline to each goal on the current page
+    # 6️⃣ Attach probability & conditional suggested deadline
+    today = date.today()
     for goal in page_obj:
-        prob_data = predict_goal_probability(request.user, goal)  # pass both user and goal
+        prob_data = predict_goal_probability(request.user, goal)
         goal.probability = prob_data.get("probability", 100)
-        goal.suggested_deadline = prob_data.get("suggested_deadline", "--")
 
+        # Suggested deadline logic (separate from user deadline!)
+        if goal.deadline:
+            days_remaining = (goal.deadline - today).days
+            if goal.probability < 80 and days_remaining < 10:
+                goal.suggested_deadline = prob_data.get("suggested_deadline", "--")
+            else:
+                goal.suggested_deadline = "--"
+        else:
+            goal.suggested_deadline = "--"
+
+    # 7️⃣ Render template
     return render(request, "savings/dashboard.html", {
         "labels": labels,
         "progress": progress,
@@ -60,7 +72,6 @@ def savings_dashboard(request):
         "current_balance": current_balance,
         "overall_progress": overall_progress,
     })
-
 
 # -------------------------
 # CRUD: Goals Form
